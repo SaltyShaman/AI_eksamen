@@ -1,0 +1,219 @@
+{
+  "name": "AI eksamen publisher",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "publish_topic",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -560,
+        -96
+      ],
+      "id": "d1848f3e-7b20-4c5b-b83c-b3119cfa3d3f",
+      "name": "Webhook publish_topic",
+      "webhookId": "d93dc728-4b14-40b9-b2d5-8f28c4ed0244"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-4-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        96
+      ],
+      "id": "a3a88aa6-be5e-44a5-8e91-948d51bae43a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "yhKYsGfEWWW6oSNz",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/research_query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"query\": \"={{$json.query}}\",\n  \"top_k\": \"={{$json.top_k || 5}}\",\n  \"instructions\": \"={{$json.instructions || 'Svar på research assistenen.'}}\",\n  \"reply_to\": \"publish_agent\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        144
+      ],
+      "id": "5b23e4fd-e328-4de1-ac81-45a5c1b49a60",
+      "name": "Post research_query"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Du er en AI publishing agent.\n\nDu modtager:\n1) user_query (det oprindelige emne brugeren vil have dækket)\n2) research_result (output fra research assistenten)\n\nOPGAVE:\n- Du må KUN bruge research_result som vidensgrundlag.\n- Generér en kort, faktuel og velstruktureret artikel baseret på research_result.\n- Artiklen SKAL handle om user_query og må ikke skifte emne.\n- Ingen hallucinationer. Brug kun fakta fra research_result.\n\nStruktur:\n1. Titel\n2. Kort introduktion\n3. 2–4 afsnit med hovedpointer baseret på research_result\n4. Kort konklusion\n\nFormatér artiklen til en email.\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        -80
+      ],
+      "id": "e56e24ea-efe1-49e3-b259-be190dce4a29",
+      "name": "Publish agent"
+    },
+    {
+      "parameters": {
+        "fromEmail": "kristoffer6400@gmail.com",
+        "toEmail": "kristoffer6400@gmail.com",
+        "subject": "Ny artikel fra Publisher Agent",
+        "html": "={{$json[\"email_body\"]}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        320,
+        -96
+      ],
+      "id": "8a2668c0-2f81-4dca-8ec5-79444e06d400",
+      "name": "Send email",
+      "webhookId": "c1741490-b2f5-4aac-87ec-08a7a2f5dec4",
+      "credentials": {
+        "smtp": {
+          "id": "itNSD1gSShjsk9xd",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};  // Henter data fra Webhook body\n\nreturn [\n  {\n    json: {\n      query: body.query || \"\",                 // Hent query\n      top_k: body.top_k || 5,                  // Default til 5, hvis ikke sendt\n      instructions: body.instructions || \"Svar på research assistenten.\"\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        -96
+      ],
+      "id": "ba958d9b-2525-41c3-96a5-57c725e2a524",
+      "name": "Format publish input"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Antag input fra Publisher agent:\nconst output = $json.output || \"\";\n\n// Hvis output er et array med items, kan du samle dem:\nlet emailBody = \"\";\n\nif (Array.isArray(output)) {\n  output.forEach((item, index) => {\n    emailBody += item.output + \"\\n\\n\"; // sætter hvert item på ny linje\n  });\n} else {\n  emailBody = output;\n}\n\nreturn [\n  {\n    json: {\n      email_body: emailBody\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -80
+      ],
+      "id": "d5e5caa3-4059-4860-8052-691246537d6a",
+      "name": "Prepare email"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook publish_topic": {
+      "main": [
+        [
+          {
+            "node": "Format publish input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Publish agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post research_query": {
+      "ai_tool": [
+        [
+          {
+            "node": "Publish agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format publish input": {
+      "main": [
+        [
+          {
+            "node": "Publish agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare email": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b09df35c-2cf3-49e2-b8dd-8845b9899c41",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ccd121b7646c1786052dae96bfecb373c5babb24c3f3732f9bc94ba9d9a0b2af"
+  },
+  "id": "ZNDFSl9i6eVGE6oY",
+  "tags": []
+}
