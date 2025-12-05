@@ -1,0 +1,345 @@
+{
+  "name": "AI eksamen field agent",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Tjek først, at data findes\nif (!items[0] || !items[0].json.data || !items[0].json.data.children) {\n    return [];\n}\n\n// Hent posts fra Reddit\nconst posts = items[0].json.data.children;\n\n// Formater til vores standard JSON\nreturn posts.map(p => ({\n    json: {\n        title: p.data.title,\n        url: p.data.url,\n        summary: p.data.selftext ? p.data.selftext.substring(0, 200) : \"\",\n        source: \"reddit\",\n        date: new Date(p.data.created_utc * 1000).toISOString(),\n        tags: p.data.link_flair_text ? [p.data.link_flair_text] : []\n    }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        -240
+      ],
+      "id": "2e246432-9eaa-4c5a-ab78-9191d1360b37",
+      "name": "Format dkudvikler"
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/dkudvikler/.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -512,
+        -240
+      ],
+      "id": "c821159c-5d5b-4865-91e4-75052743d38b",
+      "name": "Get reddit dkudvikler.json"
+    },
+    {
+      "parameters": {
+        "url": "https://www.computerworld.dk/",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -544,
+        48
+      ],
+      "id": "8b0a6498-0ffc-41f0-9c81-108bfcca9c77",
+      "name": "Get Computerworld (raw HTML)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = items[0].json.data;\nconst articles = [];\n\n// Regex til at finde artikler i <ul class=\"c-articles\">\nconst regex = /<span class=\"time\">\\s*([\\d:]+)\\s*<\\/span>.*?<a class=\"article-label\".*?>(.*?)<\\/a>.*?<p class=\"article-title-container\"><a href=\"(.*?)\">(.*?)<\\/a>/gs;\n\nlet match;\nwhile ((match = regex.exec(html)) !== null) {\n    const date = match[1].trim();\n    const tag = match[2].trim();\n    const url = match[3].trim();\n    const title = match[4].trim();\n\n    articles.push({\n        json: {\n            title,\n            url: url.startsWith('http') ? url : 'https://www.computerworld.dk' + url,\n            summary: title, // Brug title som placeholder for summary (Der er ikke en officiel API)\n            source: 'computerworld',\n            date,\n            tags: [tag]\n        }\n    });\n}\n\nreturn articles;\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        32
+      ],
+      "id": "acd1c3b1-82d3-4bab-9fb3-85b43064931e",
+      "name": "Extract articles"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -176,
+        -128
+      ],
+      "id": "46b3fea6-1582-404d-8eab-eab054f31a73",
+      "name": "Merge source"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d8dee99a-9fc7-4377-bc3c-3f11b1d78e8d",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        48
+      ],
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "AI_eksamen",
+          "mode": "list",
+          "cachedResultName": "AI_eksamen"
+        },
+        "options": {}
+      },
+      "id": "c7505cd1-5983-44d2-b152-2259bdac2691",
+      "name": "Qdrant insert",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        368,
+        -112
+      ],
+      "credentials": {
+        "qdrantApi": {
+          "id": "zoS7HTm4opb5xY6w",
+          "name": "QdrantApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "fa7c1dd5-0e3d-4d27-86c6-e5ce0d130573",
+      "name": "OpenAI embedding 3-small",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        64
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "yhKYsGfEWWW6oSNz",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const p = item.json;\n\n  return {\n    json: {\n      pageContent: `${p.title}\\n\\n${p.summary}`,\n      metadata: {\n        source: p.source || \"unknown\",\n        tags: p.tags || [],\n        date: p.date || new Date().toISOString(),  // 🔥 tilføjet\n        url: p.url || \"\"\n      }\n    }\n  };\n});\n\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        -128
+      ],
+      "id": "009a163f-4654-4e0d-a7b5-d00c2eee8c23",
+      "name": "Prepare Document Data"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list",
+          "cachedResultName": "chatgpt-4o-latest"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        112,
+        48
+      ],
+      "id": "afff66c2-e501-4268-85a0-1ff658361c8f",
+      "name": "OpenAI Chat Model 4o",
+      "credentials": {
+        "openAiApi": {
+          "id": "yhKYsGfEWWW6oSNz",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du er en AI-assistent der strukturerer JSON til en RAG-database.\nOmrådet er IT og programmering.\n\nInstruktioner:\n1. Læs pageContent og lav et kort summary på maks 50 ord.\n2. Behold ALLE metadata-felter præcis som de er (source, tags, date, url).\n3. Tilføj nye tags så der er maks 3 tags i alt.\n4. Returnér kun følgende felter i et JSON-objekt:\n   - pageContent\n   - metadata (source, tags, date, url)\n   - ai_summary\n   - ai_tags\n\nHer er input JSON:\n{{ JSON.stringify($json) }}\n\n\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        112,
+        -128
+      ],
+      "id": "4f16679b-2c19-47d9-9e66-11589fa2e179",
+      "name": "Field Agent"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "field_agent",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -752,
+        -80
+      ],
+      "id": "be2a1e05-6af7-4e1b-8357-8b616e38f85f",
+      "name": "Webhook field_agent",
+      "webhookId": "3d69191a-e0af-4bd6-ac8e-19bcaf729857"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get reddit dkudvikler.json": {
+      "main": [
+        [
+          {
+            "node": "Format dkudvikler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Computerworld (raw HTML)": {
+      "main": [
+        [
+          {
+            "node": "Extract articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract articles": {
+      "main": [
+        [
+          {
+            "node": "Merge source",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Format dkudvikler": {
+      "main": [
+        [
+          {
+            "node": "Merge source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant insert",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge source": {
+      "main": [
+        [
+          {
+            "node": "Prepare Document Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI embedding 3-small": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant insert",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Document Data": {
+      "main": [
+        [
+          {
+            "node": "Field Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model 4o": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Field Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Field Agent": {
+      "main": [
+        [
+          {
+            "node": "Qdrant insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook field_agent": {
+      "main": [
+        [
+          {
+            "node": "Get Computerworld (raw HTML)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get reddit dkudvikler.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5ff6bea2-5bf0-4494-b13f-046ce0874e8d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ccd121b7646c1786052dae96bfecb373c5babb24c3f3732f9bc94ba9d9a0b2af"
+  },
+  "id": "5KD64qd51kSrf61p",
+  "tags": []
+}
