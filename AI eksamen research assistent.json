@@ -1,0 +1,162 @@
+{
+  "name": "AI eksamen research assistent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research_query",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -368,
+        -144
+      ],
+      "id": "4b9f3c44-f38a-40a1-b81b-ff4c01c00875",
+      "name": "Webhook research_query",
+      "webhookId": "ba06672d-64e2-477f-87a4-6433a2a20e15"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du er en research assistent.\nDu har to værktøjet: 'mcp_message' og 'ask_field_agent'. Du skal syntisere ny viden på baggrund af resultaterne fra begge værktøjet.\nDu bruger værktøjet `mcp_message` til at hente eksisterende viden fra RAG databasen.\n1) Send følgende til archive agenten via mcp_message:\n{\n  \"agent\": \"archive_agent\",\n  \"query\": {{$json.query}}\n}\nDette returnerer den eksisterende viden.\n\n2) Find den viden der lige er blevet tilføjet til databasen.\n\n3) På baggrund af de her værktøjer skal du syntisere ny viden.\n\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        -144
+      ],
+      "id": "f0a74b6f-7b4d-4c04-a811-55f195577455",
+      "name": "AI Agent research assistent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-4-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        64
+      ],
+      "id": "a6623680-534d-4805-9b9f-718c102772cb",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "yhKYsGfEWWW6oSNz",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/field_agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        80
+      ],
+      "id": "bd9bd0c7-df0f-4fdb-9b64-cf3467af72ca",
+      "name": "Post field agent"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/mcp_message",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"payload\": {\n    \"query\": \"={{$json.query}}\",\n    \"top_k\": \"={{$json.top_k || 5}}\",\n    \"instructions\": \"={{$json.instructions || 'Svar på baggrund af Qdrant databasen.'}}\",\n    \"reply_to\": \"research_assistant\"\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        112,
+        32
+      ],
+      "id": "b21af976-35da-42e7-80d3-668f43fadd7c",
+      "name": "Post archieve agent"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook research_query": {
+      "main": [
+        [
+          {
+            "node": "AI Agent research assistent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent research assistent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post field agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent research assistent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post archieve agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent research assistent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2779a2a2-4458-4f89-95fe-f5262d4038ff",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ccd121b7646c1786052dae96bfecb373c5babb24c3f3732f9bc94ba9d9a0b2af"
+  },
+  "id": "bIYB9Hf8AEHb7qBY",
+  "tags": []
+}
